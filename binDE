@@ -1,0 +1,103 @@
+function [gBestF,binarygBestV,testError,b,fitnessSayiVektor] = binDE(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize)
+    warning('off');
+    %parametreler ve değişkenler belirlenir
+    bireySayi=50;
+    P=0.25;%perturbation parameter
+    F=1;%mutation factor
+    CR=0.1;%cross over factor
+    maxIterasyon=100;
+      
+    %0-1 aralığında random değerlerden oluşan ilk populasyon initilaize edilir.
+    populasyon=rand(bireySayi,ozellikS);
+        
+    binaryPopulasyon=binDEbinaryDonustur(populasyon,ozellikS,bireySayi);
+
+    fitnessSayiVektor=zeros(1000,2);
+    fitnessSayisi=0;
+    fitnessIndis=1;
+    
+    %ilk surunun fitness değeri hesaplanır.
+    fitnessVektor = fitness(train,test,binaryPopulasyon,testSize,ozellikS,trainLabel,testLabel,bireySayi); 
+       
+    %global best bulunur
+    [gBestF, j]=max(fitnessVektor);
+    contgBestV=populasyon(j,:);
+    binarygBestV=binDEbinaryDonustur(contgBestV,ozellikS,1);
+    
+    fitnessSayiVektor(fitnessIndis,1)=fitnessSayisi;
+    fitnessSayiVektor(fitnessIndis,2)=gBestF;
+    fitnessIndis=fitnessIndis+1;
+          
+    for syc=1:maxIterasyon
+        for j=1:bireySayi
+            %MUTASYON
+            V=populasyon(j,:);
+            %current'dan farklı 3 tane random komşu seç
+            komsular=randsample(setdiff(1:bireySayi, j), 3);
+            komsu1=populasyon(komsular(1),:);
+            komsu2=populasyon(komsular(2),:);
+            komsu3=populasyon(komsular(3),:);
+            %random komsular ile mutant bireyi uret
+            mutant=komsu3+F*(komsu1-komsu2);
+            
+            %Current bireyin her bir boyutu için random bir sayı üretilir.
+            %Bu random sayı perturbation parameter'dan küçükse ilgili indisin 
+            %değeri mutant bireyden alınır aksi halde current bireyden alınır
+            %0-1 aralığında random sayılardan oluşan bir vektör uret
+            d=rand(1,ozellikS);
+            %vektorde degeri perturbation parameter'dan küçük olan indisleri bul
+            indis=find(d<=P);
+            V(indis)=mutant(indis);
+            mutant=V;
+            
+            %CAPRAZLAMA
+            %Aday birey mutant birey ile current bireyin caprazlaması ile
+            %elde edilir. buna gore aynı uzunlukta 0-1 aralıgında random
+            %degerlerden olusan bir vektor olusturulur. Random vektordeki 
+            %i. random sayının degeri CR'den kucukse aday bireyin i.
+            %indisli degeri mutant vektorun i. indisli degeridir. Aksi
+            %halde current ın i. indisli değeridir.
+            V=populasyon(j,:);
+            d=rand(1,ozellikS);
+            indis=find(d<=CR);
+            V(indis)=mutant(indis);
+            %elde edilen aday birey binary vektore donusturulur
+            binaryV=binDEbinaryDonustur(V,ozellikS,1);
+            %aday bireyin fitness degeri hesaplanır
+            fitnessV =fitness(train,test,binaryV,testSize,ozellikS,trainLabel,testLabel,1);
+            %current ve aday birey den fitness degeri yuksek olan bir
+            %sonraki nesle aktarılır.
+            if (fitnessVektor(j)<fitnessV)
+                populasyon(j,:)=V;
+                binaryPopulasyon(j,:)=binaryV;
+                fitnessVektor(j)=fitnessV; 
+            end   
+        end
+
+        %global best değişmeli mi kontrol edilir.
+        [deger, yer]=max(fitnessVektor);
+        if (gBestF<deger)
+            gBestF=deger;
+            %contgBestV=populasyon(yer,:);
+            binarygBestV=binaryPopulasyon(yer,:);
+        end 
+        fitnessSayiVektor(fitnessIndis,1)=fitnessSayisi;
+    	  fitnessSayiVektor(fitnessIndis,2)=gBestF;
+        fitnessIndis=fitnessIndis+1;
+    end  
+    
+    [~,c2]=size(find(binarygBestV>0));%ilgili kaynakta kaç özelliğin seçili olduğunu bulur
+    datasetTrain=zeros(trainSize,c2);
+    datasetValidation=zeros(validationSize,c2);
+    %seçili özelliklerin indileri ind dizisinde tutulur.
+    ind=find(binarygBestV>0);
+
+        datasetTrain=train(:,ind);  
+        datasetValidation=validation(:,ind);
+      
+    model = ClassificationKNN.fit(datasetTrain,trainLabel,'NumNeighbors',5);
+    predictions = model.predict(datasetValidation);
+    [r2,~]=size(find(predictions==validationLabel));
+    testError=(validationSize-r2)/validationSize; 
+    [~,b]=size(find(binarygBestV>0));  
+end
