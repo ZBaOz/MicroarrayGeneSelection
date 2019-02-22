@@ -1,0 +1,38 @@
+function [train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize] = train2Testbolme(dataset,label)
+ %VERİSETİNİN RANDOM SEÇİLEN %60'I EĞİTİM İÇİN AYRILIR.
+ %eğitim, test, validation kümeleri
+ %ayrılırken etiket bilgileri de dikkate alınarak validation ve test kümelerinde 
+ %her bir sınıftan en az bir örnek bulunması sağlanır
+    [sampleS,~]=size(dataset);
+    testRatio=0.2;
+    testValidSize=round(sampleS*testRatio);
+    testIndis=zeros(0,1);
+    validationIndis=zeros(0,1);    
+    trainIndis=zeros(0,1);          
+    etiketler=unique(label);
+    [a,~]=size(etiketler);    
+    for i=1:a
+        [x,~]=find(label==etiketler(i));
+        [c,~]=size(x);
+        idx = randperm(c);
+        testValidSize=round(c*testRatio);
+        f=idx(1:testValidSize); 
+        f=x(f);
+        testIndis=[testIndis;f];        
+        f=idx((testValidSize+1):(2*testValidSize));
+        f=x(f);
+        validationIndis=[validationIndis;f];        
+        f=idx(((2*testValidSize)+1):c);
+        f=x(f);
+        trainIndis=[trainIndis;f];
+    end    
+    train=dataset(trainIndis,:);
+    trainLabel=label(trainIndis,:);
+    [trainSize,~]=size(train);
+    validation=dataset(validationIndis,:);
+    validationLabel=label(validationIndis,:);
+    [validationSize,~]=size(validation);
+    test=dataset(testIndis,:);
+    testLabel=label(testIndis,:);
+    testSize=validationSize;
+end
