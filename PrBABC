@@ -1,0 +1,202 @@
+function [gBestF,gBestV,testError,b,olasiliklar,fitnessSayiVektor,sonuc] = PrBABC(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize)
+    warning('off');
+    %parametreler ve değişkenler belirlenir
+    esik=0.85;
+    KaynakSayisi=25;
+    maxIterasyon=100;
+    gelismemeL=100;%bir kaynağın max gelişmeme katsayısı
+    gelismemeV=zeros(1,KaynakSayisi);
+    olasilikV=zeros(1,KaynakSayisi);  
+    fitnessSayisi=0;
+    %fitnessSayısı,İlgili iterasyon için accuracy,seçilen özellik sayısı,
+    %ilgili iterasyon için test hatası
+    fitnessSayiVektor=zeros((maxIterasyon+1),4);
+     
+    %1.satır olasılık değerlerini, 2. satır başarılı olma sayılarını tutar.
+    %1. sütun birinci öğrenme yönteminin olasılık ve başarı sayısı, 2.
+    %sütun 2. öğrenme yönteminin
+    EDA=zeros(3,2);
+    EDA(1,1)=0.5;
+    EDA(1,2)=0.5;
+    EDA(2,1)=0;
+    EDA(2,2)=0;
+    EDA(3,1)=0;
+    EDA(3,2)=0;
+
+    %kaynaklar random initialize edilir
+    kaynak=rand(KaynakSayisi,ozellikS);
+    kaynak(kaynak>=esik)=1;
+    kaynak(kaynak<esik)=0;
+    for i=1:KaynakSayisi
+        if (sum(kaynak(i,:))<1)
+            x=randi(1,ozellikS);
+            kaynak(i,x)=1;
+        end
+    end
+
+    %Kaynakların ilk fitness değerleri hesaplanır
+    fitnessVektor = fitness(train,test,kaynak,testSize,ozellikS,trainLabel,testLabel,KaynakSayisi); 
+    
+    %global best bulunur
+    [gBestF, j]=max(fitnessVektor);
+    gBestV=kaynak(j,:);
+
+    for i=1:maxIterasyon
+        ilkDurumOlasilik=EDA(1,1);
+        %İŞÇİ ARI FAZI UYGULANIR
+        %Her bir j. arı için
+        %1-Mevcut kaynaklardan rastgele bir kaynak (V) belirlenir
+        %2-V'nin fitnessı hesaplanır.
+        %3-V ve Xj'nin fitnessları kıyaslanır;
+        %   a-V daha başarılı ise Xj ile yer değiştirir ve j. kaynağın 
+        %   gelişmeme katsayısı 0'lanır.
+        %   b-Xj daha iyi ise j. kaynağın gelişmeme katsayısı 1 artırılır.
+        for j=1:KaynakSayisi       
+            %yeni kaynak üretilir.
+            [V,flag]= PrBABCyeniKaynakEDA(kaynak,ozellikS,j,KaynakSayisi,ilkDurumOlasilik);
+            fitnessV =fitness(train,test,V,testSize,ozellikS,trainLabel,testLabel,1);
+            fitnessSayisi=fitnessSayisi+1;
+            
+            %yeni üretilen kaynak current kaynağın fitnessından daha
+            %iyiyse onu alır, değilse gelişmeme
+            % katsayısını 1 artırır
+            if (fitnessVektor(j)<fitnessV)
+                kaynak(j,:)=V;		
+                gelismemeV(j)=0;
+                fitnessVektor(j)=fitnessV; 
+                if (flag==1)%flag=1 ise 1. öğrenme yöntemi başarılıdır.basarılı olma sayıları güncellenir
+                    EDA(2,1)=EDA(2,1)+1;
+                else
+                    EDA(2,2)=EDA(2,2)+1;
+                end
+            else
+                gelismemeV(j)=gelismemeV(j)+1;
+                if (flag==1)%flag=1 ise 1. öğrenme yöntemi başarılıdır.başarısız olma sayıları güncellenir
+                    EDA(3,1)=EDA(3,1)+1;
+                else
+                    EDA(3,2)=EDA(3,2)+1;
+                end
+            end    
+        end
+
+        %olasılık değerleri hesaplanır.
+        toplamFit=sum(fitnessVektor);
+        for j=1:KaynakSayisi
+            olasilikV(j)=(fitnessVektor(j)/toplamFit)*10;
+        end
+
+        %GÖZCÜ ARI FAZI UYGULANIR
+        %her bir t kaynagi için, 0-1 aralığında random bir deger üretilir Eger bu deger
+        %i. olasilik degerinden küçükse t. ari için yeni bir
+        %V olusturulur, t.arinin mevcut kaynagi ile yeni olusturulan
+        %kaynagin fitness degerleri hesaplanir fitness degeri yüksek olan
+        %kaynak t. arinin kaynagi ise gelismeme katsayisi 1 artirilir.Yeni üretilen V
+        %nin fitness degeri daha yüksekse t. arinin bir sonraki çevrimdeki kaynagi 
+        %o olacaktir.bu yeni kaynak için gelismeme katsayisi 0'lanir. her bir t arisi için random üretilen 
+        %deger olasilik degerinden küçük olana kadar islem devam eder.
+        t=1;j=1;
+        while (t<KaynakSayisi)
+            rst=rand();
+            if (rst<olasilikV(j))
+                t=t+1;
+                [V,flag]= PrBABCyeniKaynakEDA(kaynak,ozellikS,j,KaynakSayisi,ilkDurumOlasilik);
+                fitnessV =fitness(train,test,V,testSize,ozellikS,trainLabel,testLabel,1);
+                fitnessSayisi=fitnessSayisi+1;
+                                              
+                if (fitnessVektor(j)<fitnessV)
+                    kaynak(j,:)=V;
+                    gelismemeV(j)=0;
+                    fitnessVektor(j)=fitnessV; 
+                    if (flag==1)%flag=1 ise 1. öğrenme yöntemi başarılıdır
+                        EDA(2,1)=EDA(2,1)+1;
+                    else
+                        EDA(2,2)=EDA(2,2)+1;
+                    end
+                else
+                    gelismemeV(j)=gelismemeV(j)+1;
+                    if (flag==1)%flag=1 ise 1. öğrenme yöntemi başarılıdır
+                        EDA(3,1)=EDA(3,1)+1;
+                    else
+                        EDA(3,2)=EDA(3,2)+1;
+                    end
+                end
+            end
+            j=j+1;
+            if (j==KaynakSayisi)
+                j=1;
+            end
+        end
+
+        %kaşif arı fazı uygulanır.
+        [deger, yer]=max(gelismemeV);
+        if (deger>gelismemeL)
+            kasif=rand(1,ozellikS);            
+    	    kasif(kasif>=esik)=1;
+    	    kasif(kasif<esik)=0;
+            if (sum(kasif)<1)
+                j=randi(1,ozellikS);
+                kasif(j)=1;
+            end
+            fitnessV =fitness(train,test,kasif,testSize,ozellikS,trainLabel,testLabel,1); 
+            fitnessSayisi=fitnessSayisi+1;
+            fitnessVektor(yer)=fitnessV;
+            gelismemeV(yer)=0;
+            kaynak(yer,:)=kasif;
+        end
+
+        [deger, yer]=max(gecici);
+        if yer==2
+            kaynak(exceptV,:)=V;
+            gelismemeV(exceptV)=0;
+            fitnessVektor(exceptV)=deger;    
+        end
+
+        %global best değişmeli mi kontrol edilir.
+        [deger, yer]=max(fitnessVektor);
+        if (gBestF<deger)
+            gBestF=deger;
+            gBestV=kaynak(yer,:);    
+        end  
+        
+        %EDA GÜNCELLENİR
+        EDA(1,1)=(EDA(2,1)*(EDA(2,2)+EDA(3,2)))/((EDA(2,2)*(EDA(2,1)+EDA(3,1)))+(EDA(2,1)*(EDA(2,2)+EDA(3,2))));
+        EDA(1,2)=1-EDA(1,1);
+        fitnessSayiVektor((i+1),1)=fitnessSayisi;
+        fitnessSayiVektor((i+1),2)=gBestF;
+	
+        %YAKINSAMA İÇİN TEST HATASININ HESAPLANMASI
+        [r2,c2]=size(find(gBestV>0));%ilgili kaynakta kaç özelliğin seçili olduğunu bulur
+        datasetTrain=zeros(trainSize,c2);
+        datasetValidation=zeros(validationSize,c2);
+        fitnessSayiVektor((i+1),3)=c2;
+        %seçili özelliklerin indileri ind dizisinde tutulur.
+        ind=find(gBestV>0);
+        for j=1:c2
+            datasetTrain(:,j)=train(:,(ind(j)));  
+            datasetValidation(:,j)=validation(:,(ind(j)));
+        end 
+        model = ClassificationKNN.fit(datasetTrain,trainLabel,'NumNeighbors',5);
+        predictions = model.predict(datasetValidation);
+        [r2,~]=size(find(predictions==validationLabel));
+        testError=(validationSize-r2)/validationSize;         
+        sonuc(i)=testError;       
+        fitnessSayiVektor((i+1),4)=testError;
+        
+    end
+        
+    %seçili özelliklerin indileri ind dizisinde tutulur.
+    ind=find(gBestV>0);
+   
+    datasetTrain=train(:,ind);
+    datasetTest=test(:,ind);
+    datasetValidation=validation(:,ind);
+             
+    trainBuyuk=[datasetTrain;datasetTest];
+    labelBuyuk=[trainLabel;testLabel];
+    model = ClassificationKNN.fit(trainBuyuk,labelBuyuk,'NumNeighbors',5);
+    predictions = model.predict(datasetValidation);
+    [r2,~]=size(find(predictions==validationLabel));
+    testError=(validationSize-r2)/validationSize; 
+    [~,b]=size(find(gBestV>0));  
+    olasiliklar=EDA(2,:);
+end
