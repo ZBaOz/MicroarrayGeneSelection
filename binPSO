@@ -1,0 +1,86 @@
+function [gBestF,binarygBestV,testError,b,fitnessSayiVektor] = binPSO(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize)
+    warning('off');
+    %parametreler ve değişkenler belirlenir
+    parcacikSayi=50;
+    initialWeight=0.9;
+    c1=2;
+    c2=2;
+    Vmax=6;
+    maxIterasyon=100;
+    
+    %0-1 aralığında random değerlerden oluşan ilk populasyon initilaize edilir.
+    suru=rand(parcacikSayi,ozellikS);
+    %ilk populasyonundaki parçaçıkların pbestleri ilk populasyonun kendisidir.
+    pBest=suru;
+    
+    %ilk hız matrisi, (-Vmax-Vmax) aralığında random oluşturulur
+    hizMatris = -Vmax + (Vmax+Vmax).*rand(parcacikSayi,ozellikS);
+    
+    binarySuru=binPSObinaryDonustur(suru,ozellikS,parcacikSayi);
+
+    fitnessSayiVektor=zeros(1000,2);
+    fitnessSayisi=0;
+    fitnessIndis=1;
+    
+    %ilk surunun fitness değeri hesaplanır.
+    fitnessVektor = fitness(train,binarySuru,trainSize,ozellikS,trainLabel,parcacikSayi); 
+    
+    %ilk asamada parcacıkların pbestleri initialize edilen sürünün fitness degerleridir.
+    pBestFitness=fitnessVektor;
+    
+    %global best bulunur
+    [gBestF, j]=max(fitnessVektor);
+    contgBestV=suru(j,:);
+    fitnessSayiVektor(fitnessIndis,1)=fitnessSayisi;
+    fitnessSayiVektor(fitnessIndis,2)=gBestF;
+    fitnessIndis=fitnessIndis+1;
+          
+    hizMatris2 =zeros(parcacikSayi,ozellikS);
+    suru2 =zeros(parcacikSayi,ozellikS);
+    for syc=1:maxIterasyon
+        for j=1:parcacikSayi
+            %parçacık hızları hesaplanır
+            hizMatris2(j,:)=(initialWeight*hizMatris(j,:))+(c1*rand()*(pBest(j,:)-suru(j,:)))+(c2*rand()*(contgBestV-suru(j,:)));
+            %parçacıkların yeni konumları belirlenir.
+            suru2(j,:)=suru(j,:)+hizMatris2(j,:);
+        end
+        %surunun binary donusumu yapılarak yeni fitness degerleri hesaplanır
+        binarySuru=binPSObinaryDonustur(suru2,ozellikS,parcacikSayi);
+        fitnessVektor = fitness(train,binarySuru,trainSize,ozellikS,trainLabel,parcacikSayi);
+        
+        for j=1:parcacikSayi
+            if (pBestFitness(j)<fitnessVektor(j))
+                suru(j,:)=suru2(j,:);
+                pBestFitness(j)=fitnessVektor(j);
+            end
+        end
+        hizMatris2(hizMatris2>Vmax)=Vmax;
+        hizMatris2(hizMatris2<-Vmax)=-Vmax;
+        %global best değişmeli mi kontrol edilir.
+        [deger, yer]=max(pBestFitness);
+        if (gBestF<deger)
+            gBestF=deger;
+            contgBestV=suru(yer,:);
+        end 
+        fitnessSayiVektor(fitnessIndis,1)=fitnessSayisi;
+    	  fitnessSayiVektor(fitnessIndis,2)=gBestF;
+        fitnessIndis=fitnessIndis+1;
+    end
+    
+    binarygBestV=binPSObinaryDonustur(contgBestV,ozellikS,1);
+    
+    [~,c2]=size(find(binarygBestV>0));%ilgili kaynakta kaç özelliğin seçili olduğunu bulur
+    datasetTrain=zeros(trainSize,c2);
+    datasetValidation=zeros(validationSize,c2);
+    %seçili özelliklerin indileri ind dizisinde tutulur.
+    ind=find(binarygBestV>0);
+
+        datasetTrain=train(:,ind);  
+        datasetValidation=validation(:,ind);
+      
+    model = ClassificationKNN.fit(datasetTrain,trainLabel,'NumNeighbors',5);
+    predictions = model.predict(datasetValidation);
+    [r2,~]=size(find(predictions==validationLabel));
+    testError=(validationSize-r2)/validationSize; 
+    [~,b]=size(find(binarygBestV>0));  
+end
