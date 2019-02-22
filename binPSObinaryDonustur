@@ -1,0 +1,26 @@
+function [binarySuru] = binPSObinaryDonustur(suru,ozellikS,parcacikSayi)
+%suru cont uzaydaki olası çözümlerdir. Fitness değeri hesaplanmadan binary
+%dönüşümü yapılır. Buna göre suru matrisine lojistik sigmoid uygulanarak
+%olasılık değerleri bulunmuş olur.
+    sigmoidSuru=logsig(suru);
+    binarySuru=zeros(parcacikSayi,ozellikS);
+    for i=1:parcacikSayi
+        for j=1:ozellikS
+            %x=rand();
+            if (0.9<=sigmoidSuru(i,j))
+                binarySuru(i,j)=1;
+            end   
+        end
+        %V vektörünün tüm elemanları 0 çıkarsa rastgele seçilecek bir
+        %elemanı 1 yapılarak hiçbir özellik bilgisi olmayan bir datasetin
+        %sınıflandırıcıya gönderilmesi engellenmiş olur.
+        y=binarySuru(i,:);
+        [~,b]=size(find(y>0));
+        if (b<1)
+            a=round(1+(ozellikS-1)*rand(1)); 
+            y(a)=1;
+            binarySuru(i,:)=y;
+        end
+    end
+    return;
+end
