@@ -1,0 +1,58 @@
+function [] = run()
+    %gen seçimi işleminin yapılacağı veriseti
+    dosya='1-CLL-SUB.txt';
+    labelDosya='1-CLL-SUB.xlsx'
+    %dataset okunur özellik ve sample sayısı alınır
+    dataset2=dlmread(1-CLL-SUB.txt');
+    label=xlsread('1-CLL-SUB.xlsx');
+
+    %3 lü filter uygulanır
+    baslangic=cputime;
+    topOzSay=1500;%verisetinde filterla ile toplam kaç özellik seçileceğini belirler
+    [dataset,ozellikS]= Filter(dataset2,topOzSay);
+
+    bitis=cputime;
+    ilkSure=bitis-baslangic;
+
+    %test kümesi hatasını içeren 1x30 luk vektör.Her bir hücre bir iterasyon
+    %sonucundaki train set hatasını verir.
+    runSayisi=20;
+    testErrorV=zeros(1,runSayisi);
+    trainErrorV=zeros(1,runSayisi);
+    ozV=zeros(1,runSayisi);
+    sureV=zeros(1,runSayisi);
+    matris=zeros(1,(ozellikS+1));
+    yakinsama=zeros(1,100);
+    for i=1:runSayisi
+        fprintf('%d. iterasyon ',i);
+        %her run da train test ve validation kümeleri random sample'lar ile yeniden oluşturulur.runA
+        [train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize] = train2Testbolme(dataset,label);
+
+        baslangic=cputime;
+        [gBestF,gBestV,testErrorV(i),oz,olasiliklar,fitnessSayiVektor,sonuc] = binABC(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize);
+        %[gBestF,gBestV,testErrorV(i),oz,olasiliklar,fitnessSayiVektor,sonuc] = GA(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize);
+        %[gBestF,gBestV,testErrorV(i),oz,olasiliklar,fitnessSayiVektor,sonuc] = binDE(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize);
+        %[gBestF,gBestV,testErrorV(i),oz,olasiliklar,fitnessSayiVektor,sonuc] = binPSO(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize);
+
+        trainErrorV(i)=1-gBestF;
+        yakinsama(i,:)=sonuc;
+        bitis=cputime;
+        (bitis-baslangic)+ilkSure
+        sureV(i)=(bitis-baslangic)+ilkSure;
+        ozV(i)=oz;
+        matris(i,1:oz)=find(gBestV>0);
+    end
+    matris((runSayisi+1),1:10)=[mean(trainErrorV) std(trainErrorV) mean(testErrorV) std(testErrorV) mean(ozV) std(ozV) mean(sureV) std(sureV) olasiliklar(1) olasiliklar(2)];
+    
+    %her bir run için hangi özellikleri seçtiğini tutar. Son satırında da ortalama train-test hatası, özellik sayısı,
+    %çalışma süresi değerleri vardır.
+    csvwrite('CLL-SUB.csv',matris,0,0);
+    %her satır bir run değerleridir. Hücreler ise ilgili run'da her bir iterasyondaki test kümesi hatasını tutar.
+    csvwrite('CLL-SUBYakinsama.csv',yakinsama,0,0);
+    %tüketilen fitness sayısını, okadar fitness tüketildiğinde ki train accuracy değerini, seçilen özellik sayısını ve test 
+    %hatasını tutar.
+    csvwrite('CLL-SUBFitness.csv',fitnessSayiVektor,0,0);
+    %her bir run için validation hatalarını tutar
+    csvwrite('CLL-SUBTestHata.csv')),testErrorV,0,0);
+end
+
