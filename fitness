@@ -1,0 +1,22 @@
+function [fitnessVektor] = fitness(train,test,kaynak,testSize,ozellikS,trainLabel,testLabel,KaynakSayisi)
+    alfa=0.99995;
+    fitnessVektor=zeros(1,KaynakSayisi);
+    for i=1:KaynakSayisi
+        x=kaynak(i,:);
+        %%20 TEST KÜMESİYLE FITNESS
+        %c2=ilgili kaynakta kaç özelliğin seçili olduğunu tutar
+        [r2 c2]=size(find(x>0));
+        %seçili özelliklerin indileri ind dizisinde tutulur.
+        ind=find(x>0);
+        
+        datasetTrain=train(:,ind);
+        datasetTest=test(:,ind);   
+        
+        model = ClassificationKNN.fit(datasetTrain,trainLabel,'NumNeighbors',5);
+        predictions = model.predict(datasetTest);
+        [r2,c2]=size(find(predictions==testLabel));
+        testError=(testSize-r2)/testSize; 
+        testBasari=1-testError;
+        fitnessVektor(i)=(alfa*testBasari)-((1-alfa)*(c2/ozellikS));
+    end
+end
