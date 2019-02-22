@@ -1,0 +1,140 @@
+function [gBestF,gBestV,testError,b,fitnessSayiVektor] = GA(ozellikS,train,trainLabel,test,testLabel,testSize,trainSize,validation,validationLabel,validationSize,maxFitnessSayisi)
+    warning('off');
+    %parametreler ve değişkenler belirlenir
+    crossoverRate=0.7;
+    mutationRate=0.2;
+    kromozomSayi=50;
+    kromozom=zeros(kromozomSayi,ozellikS);
+    cocuk=zeros(kromozomSayi,ozellikS);
+    %kromozomun hayatta kalma olasılığını tutar
+    olasilikVektor=zeros(1,kromozomSayi);
+    
+    maxIterasyon=100;
+
+    fitnessSayiVektor=zeros(1000,2);
+    fitnessSayisi=0;
+    fitnessIndis=1;
+    
+    %kaynaklar random initialize edilir
+    esik=0.85;
+    kromozom=rand(kromozomSayi,ozellikS);
+    kromozom(kromozom>=esik)=1;
+    kromozom(kromozom<esik)=0;
+    for i=1:KaynakSayisi
+        if (sum(kromozom(i,:))<1)
+            x=randi(1,ozellikS);
+            kromozom(i,x)=1;
+        end
+    end
+
+    %ilk neslin fitness değerleri hesaplanır
+    fitnessVektor = fitness(train,kromozom,trainSize,ozellikS,trainLabel,kromozomSayi);
+    
+    %ilk nesilin olasılık değerleri hesaplanır.
+    toplamFit=sum(fitnessVektor);
+    for j=1:kromozomSayi
+        olasilikVektor(j)=(fitnessVektor(j)/toplamFit)*10;
+    end
+    
+    %global best bulunur
+    [gBestF, j]=max(fitnessVektor);
+    gBestV=kromozom(j,:);
+    fitnessSayiVektor(fitnessIndis,1)=fitnessSayisi;
+    fitnessSayiVektor(fitnessIndis,2)=gBestF;
+    fitnessIndis=fitnessIndis+1;
+    
+    for syc=1:maxIterasyon
+        %SEÇİLİM-RULET TEKERİ YÖNTEMİ
+        %crossoverın kromozom sayısı defa yapılması gerekir.1 cross over
+        %için populasyondan iki bireye ihtiyaç olduğundan 1. iterasyonun 
+        %cross overı indis dizisindeki 1 ve 2. bireyler arasında yapılacaktır.
+        ind=zeros(1,kromozomSayi);
+        j=1;
+        while j<=kromozomSayi
+            rst=rand();
+            %b sayısı olasılık vektörde rst sayısından büyük kaç değer
+            %olduğunu tutar. 
+            [~,b]=size(find(olasilikVektor>rst));
+            %b 0'dan büyükse olasılık vektöründe rst'den büyük bir veya 
+            %daha fazla değer var demektir.Bu değerlerin indisleri x
+            %vektörüne atanır.x(4 2 6) gibi.1-b arasında random int bir
+            %değer üretilir. Bu seçilecek kromozomun indisidir.
+            if (b>0)
+                x=find(olasilikVektor>rst);
+                k=randi(b);
+                ind(j)=x(k);
+                j=j+1;
+            end            
+        end
+        %CROSSOVER        
+        j=1;
+        while (j<kromozomSayi)
+            ebeveyn1=kromozom(ind(j),:);
+            ebeveyn2=kromozom(ind(j+1),:);
+            rst=rand();
+            if (rst<crossoverRate)                
+                k=randi(ozellikS);
+                l=randi(ozellikS);
+                while (l==k)
+                    l=randi(ozellikS);
+                end
+                if (k<l)
+                    gecici=ebeveyn1(k:l);
+                    ebeveyn1(k:l)=ebeveyn2(k:l);
+                    ebeveyn2(k:l)=gecici;
+                elseif (l<k)
+                    gecici=ebeveyn1(l:k);
+                    ebeveyn1(l:k)=ebeveyn2(l:k);
+                    ebeveyn2(l:k)=gecici;
+                end
+            end
+            cocuk(j,:)=ebeveyn1;
+            cocuk((j+1),:)=ebeveyn2;
+            j=j+2;
+        end
+        kromozom=cocuk;
+        
+        %MUTASYON
+        %0-1 aralığındaki random bir sayı mutasyon oranından küçükse j.
+        %bireyin random seçilen bir biti inverse edilir.
+        for j=1:kromozomSayi
+           rst=rand();
+           if (rst<mutationRate)
+               k=randi(ozellikS);
+               kromozom(j,k)=~kromozom(j,k);
+           end           
+        end
+        
+       %mevcut nesilin fitness değeri hesaplanır.
+       fitnessVektor = fitness(train,kromozom,trainSize,ozellikS,trainLabel,kromozomSayi);        
+        %mevcut nesilin olasılık değerleri hesaplanır.
+        toplamFit=sum(fitnessVektor);
+        for j=1:kromozomSayi
+            olasilikVektor(j)=(fitnessVektor(j)/toplamFit)*10;
+        end
+        %global best değişmeli mi kontrol edilir.
+        [deger, yer]=max(fitnessVektor);
+        if (gBestF<deger)
+            gBestF=deger;
+            gBestV=kromozom(yer,:);
+        end 
+        fitnessSayiVektor(fitnessIndis,1)=fitnessSayisi;
+    	  fitnessSayiVektor(fitnessIndis,2)=gBestF;
+        fitnessIndis=fitnessIndis+1;
+    end
+    
+    [~,c2]=size(find(gBestV>0));%ilgili kaynakta kaç özelliğin seçili olduğunu bulur
+    datasetTrain=zeros(trainSize,c2);
+    datasetValidation=zeros(validationSize,c2);
+    %seçili özelliklerin indileri ind dizisinde tutulur.
+    ind=find(gBestV>0);
+
+        datasetTrain=train(:,ind);  
+        datasetValidation=validation(:,ind);
+       
+    model = ClassificationKNN.fit(datasetTrain,trainLabel,'NumNeighbors',5);
+    predictions = model.predict(datasetValidation);
+    [r2,~]=size(find(predictions==validationLabel));
+    testError=(validationSize-r2)/validationSize; 
+    [~,b]=size(find(gBestV>0)); 
+end
