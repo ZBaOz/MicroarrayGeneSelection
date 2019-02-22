@@ -1,0 +1,38 @@
+function [filterData,topOzSay] = Filter(dataset,topOzSay)
+%cfs, inf gain ve reliefF'e göre rank edilmiş özelliklerden her birinden top n tane feature alınır.
+%kesişimleri bulunur, ortak feature varsa bunlar elenerek kesişim sayısı
+%kadar yeni feature eklenir sıradan. Sonuçta 3n farklı feature alınmış olur
+%ve her bir filter'dan top n tane feature vardır
+    ranks1=xlsread('CfsRank.xlsx');
+    ranks2=xlsread('InfGain.xlsx');
+    ranks3=xlsread('ReliefRank.xlsx');
+	  
+    eachFilter=round(topOzSay/3);
+    cfsFilter=ranks1(1:eachFilter,1);
+    infFilter=ranks2(1:eachFilter,1);
+    reliefFilter=ranks3(1:eachFilter,1);
+   
+    [a,~]=size(intersect(cfsFilter,infFilter));
+    kesisimSayi=0;
+    while a>kesisimSayi
+        kesisim=ranks2(1:(eachFilter+a),1);
+        kesisimSayi=a;
+        [a,~]=size(intersect(cfsFilter,kesisim));  
+    end   
+    infFilter=ranks2(1:(eachFilter+a),1);
+    birlesim=union(cfsFilter,infFilter);
+    
+    [a,~]=size(intersect(birlesim,reliefFilter));
+    kesisimSayi=0;
+    while a>kesisimSayi
+        kesisim=ranks3(1:(eachFilter+a),1);
+        kesisimSayi=a;
+        [a,~]=size(intersect(birlesim,kesisim));
+    end
+    reliefFilter=ranks3(1:(eachFilter+a),1);
+    birlesim=union(birlesim,reliefFilter);
+    filterData=dataset(:,birlesim);
+    size(filterData)
+    size(dataset)
+    
+end
